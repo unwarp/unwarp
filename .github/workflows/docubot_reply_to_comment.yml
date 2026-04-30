@@ -60,6 +60,8 @@ jobs:
               )
             }}
       - name: Call Docubot
+        # DISABLED: requires WARP_DEV_API_KEY, PEI_GH_TOKEN_PLS_DEL
+        if: false
         uses: ./.github/actions/docubot
         with:
           prompt: ${{ github.event.comment.body || inputs.prompt}}

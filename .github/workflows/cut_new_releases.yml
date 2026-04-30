@@ -86,6 +86,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Invoke update workflow in channel-versions repository
+        # DISABLED: requires CHANNEL_VERSIONS_REPOSITORY_DISPATCH_TOKEN
+        if: false
         uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         with:
           repository: warpdotdev/channel-versions
