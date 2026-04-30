@@ -87,7 +87,9 @@ jobs:
 
   tests:
     name: Run ${{ matrix.name }} tests
-    timeout-minutes: 90
+    # Default GitHub-hosted runners are slower than the large/custom runners
+    # used upstream, especially for the macOS integration suite.
+    timeout-minutes: 180
     env:
       # The GCP OIDC auth used by `google-github-actions/auth` only trusts the
       # upstream internal repository. Elsewhere, skip auth/gcloud and exclude
