@@ -16,12 +16,17 @@ threads-required = 2
 failure-output = "immediate-final"
 # Do not cancel the test run on the first failure.
 fail-fast = false
+# Keep CI test concurrency within default GitHub-hosted runner capacity.
+test-threads = 2
 
 [[profile.ci.overrides]]
 filter = 'package(integration)'
 # On CI, try integration tests up to 3 times (in total) to reduce the impact of
 # flaky tests.
 retries = 2
+# Default GitHub-hosted runners have less headroom, so run integration tests
+# one at a time under the CI profile's two-thread limit.
+threads-required = 2
 
 [profile.ci.junit]
 # Output nextest results in junit format (for uploading to buildpulse).
