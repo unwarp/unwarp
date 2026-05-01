@@ -2,4 +2,11 @@
 #
 # Installs macOS-specific build dependencies required to build Warp.
 
-xcodebuild -downloadComponent MetalToolchain
+if xcrun --find metal >/dev/null 2>&1; then
+  echo "Metal toolchain is already available."
+elif xcodebuild -help 2>&1 | grep -q -- "-downloadComponent"; then
+  xcodebuild -downloadComponent MetalToolchain
+else
+  echo "Metal toolchain is unavailable and this Xcode does not support downloading components." >&2
+  exit 1
+fi

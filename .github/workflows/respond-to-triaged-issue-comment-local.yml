@@ -12,6 +12,8 @@ jobs:
   # ``@oz-agent`` mention on a triaged issue and delegate it through
   # ``workflow_call``.
   respond_inline:
+    # DISABLED: requires OZ_MGMT_GHA_APP_ID, OZ_MGMT_GHA_PRIVATE_KEY, OSS_WARP_API_KEY
+    if: false
     permissions:
       contents: read
       issues: write

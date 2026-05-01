@@ -35,6 +35,8 @@ jobs:
           echo "analyzed_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Find old feature flags
+        # DISABLED: requires WARP_API_KEY
+        if: false
         uses: warpdotdev/oz-agent-action@main
         with:
           prompt: |
@@ -166,6 +168,8 @@ jobs:
           cache: rust
 
       - name: Clean up the unused feature flag
+        # DISABLED: requires WARP_API_KEY
+        if: false
         id: cleanup_agent
         uses: warpdotdev/oz-agent-action@main
         with:
@@ -250,7 +254,9 @@ jobs:
         
       - name: Send Slack notification
         uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
-        if: ${{ steps.create_pr.outputs.pull-request-operation == 'created' }}
+        # DISABLED: requires ACTION_MONITORING_SLACK
+        if: false
+        # Original if: ${{ steps.create_pr.outputs.pull-request-operation == 'created' }}
         with:
           method: chat.postMessage
           token: ${{ secrets.ACTION_MONITORING_SLACK }}

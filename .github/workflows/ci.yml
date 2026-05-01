@@ -29,6 +29,9 @@ env:
   # reduces the size of built artifacts (which addresses issues with
   # running out of space on GitHub-hosted runners).
   RUSTFLAGS: -C debuginfo=line-tables-only --cfg=web_sys_unstable_apis
+  # Default GitHub-hosted runners have fewer cores and less memory than the
+  # larger/custom runners used upstream, so keep Rust builds conservative.
+  CARGO_BUILD_JOBS: 2
   # Ensure we open up real windows that render their contents via the GPU,
   # so that we can exercise the actual rendering logic.
   WARPUI_USE_REAL_DISPLAY_IN_INTEGRATION_TESTS: 1
@@ -73,31 +76,26 @@ jobs:
       - name: Determine macOS runner type
         id: mac_runner_type
         run: |
-          RUNNER_TYPE='["namespace-profile-mac-ci"]'
+          RUNNER_TYPE='["macos-latest"]'
           echo "value=$RUNNER_TYPE" >> $GITHUB_OUTPUT
 
       - name: Determine wasm runner type
         id: wasm_runner_type
         run: |
-          # Use a larger (16 core, 64GB ram) runner on Linux to speed up execution time.
-          # https://github.com/warpdotdev/warp-internal/settings/actions/runners
-          RUNNER_TYPE='["ubuntu-latest-large"]'
+          RUNNER_TYPE='["ubuntu-latest"]'
           echo "value=$RUNNER_TYPE" >> $GITHUB_OUTPUT
 
   tests:
     name: Run ${{ matrix.name }} tests
-    timeout-minutes: 25
+    # Default GitHub-hosted runners are slower than the large/custom runners
+    # used upstream, especially for the macOS integration suite.
+    timeout-minutes: 180
     env:
-      # When CI runs on a PR from a fork, the GCP OIDC auth used by
-      # `google-github-actions/auth` fails because our Workload Identity
-      # Federation provider is configured to only trust the base repository.
-      # We skip the auth + gcloud install steps in those runs and exclude SSH
-      # integration tests (which require gcloud to tunnel into a GCP test VM)
-      # via the filter suffix below. Tests that need gcloud all have `_ssh_`
-      # in their name. Fork PRs lose SSH integration test coverage; those
-      # tests still run post-merge against `master`.
-      HAS_GCP_AUTH: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-      EXCLUDE_SSH_TESTS_FILTER: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) && ' and not test(/_ssh_/)' || '' }}
+      # The GCP OIDC auth used by `google-github-actions/auth` only trusts the
+      # upstream internal repository. Elsewhere, skip auth/gcloud and exclude
+      # SSH integration tests, which require gcloud to tunnel into a GCP VM.
+      HAS_GCP_AUTH: ${{ github.repository == 'warpdotdev/warp-internal' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+      EXCLUDE_SSH_TESTS_FILTER: ${{ (github.repository != 'warpdotdev/warp-internal' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)) && ' and not test(/_ssh_/)' || '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -110,17 +108,13 @@ jobs:
 
           - os: "linux"
             name: "Linux"
-            # Use a larger (16 core, 64GB ram) runner on Linux to speed up execution time.
-            # https://github.com/warpdotdev/warp-internal/settings/actions/runners
-            runner: ubuntu-latest-large
-            # We don't (yet) have any self-hosted Linux runners.
+            runner: ubuntu-latest
             is_self_hosted: false
             extra_test_args: ""
 
           - os: "windows"
             name: "Windows"
-            runner: windows-latest-large
-            # We don't (yet) have any self-hosted Windows runners.
+            runner: windows-latest
             is_self_hosted: false
             extra_test_args: "--exclude command-signatures-v2 --exclude warp_js"
     runs-on: ${{ matrix.runner }}
@@ -222,7 +216,7 @@ jobs:
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> $GITHUB_ENV
 
       - name: Set up gcloud authentication for SSH tests
-        # Skipped for fork PRs - see HAS_GCP_AUTH definition above.
+        # Skipped outside upstream internal CI - see HAS_GCP_AUTH definition above.
         if: env.HAS_GCP_AUTH == 'true'
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
@@ -230,7 +224,7 @@ jobs:
           service_account: github-ci-workflow@warp-ssh-integration-testing.iam.gserviceaccount.com
 
       - name: Install gcloud CLI tool
-        # Skipped for fork PRs - see HAS_GCP_AUTH definition above.
+        # Skipped outside upstream internal CI - see HAS_GCP_AUTH definition above.
         if: env.HAS_GCP_AUTH == 'true'
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
         with:
@@ -265,7 +259,9 @@ jobs:
 
       - name: Upload results of unit tests to trunk.io
         # Run this step even when the tests fail. Skip if the workflow is cancelled.
-        if: ${{ !cancelled() }}
+        # DISABLED: requires TRUNK_API_TOKEN
+        if: false
+        # Original if: ${{ !cancelled() }}
         continue-on-error: true
         uses: trunk-io/analytics-uploader@95a0fb8b29e45b6068304261fb518644b426a803 # v2.0.8
         with:
@@ -290,7 +286,9 @@ jobs:
 
       - name: Upload results of shell-agnostic integration tests to trunk.io
         # Run this step even when the tests fail. Skip if the workflow is cancelled.
-        if: ${{ matrix.os != 'windows' && !cancelled() }}
+        # DISABLED: requires TRUNK_API_TOKEN
+        if: false
+        # Original if: ${{ matrix.os != 'windows' && !cancelled() }}
         continue-on-error: true
         uses: trunk-io/analytics-uploader@95a0fb8b29e45b6068304261fb518644b426a803 # v2.0.8
         with:
@@ -313,7 +311,9 @@ jobs:
 
       - name: Upload results of shell integration tests against default version of bash to trunk.io
         # Run this step even when the tests fail. Skip if the workflow is cancelled.
-        if: ${{ matrix.os != 'windows' && !cancelled() }}
+        # DISABLED: requires TRUNK_API_TOKEN
+        if: false
+        # Original if: ${{ matrix.os != 'windows' && !cancelled() }}
         continue-on-error: true
         uses: trunk-io/analytics-uploader@95a0fb8b29e45b6068304261fb518644b426a803 # v2.0.8
         with:
@@ -339,7 +339,9 @@ jobs:
 
       - name: Upload results of shell integration tests against latest version of bash to trunk.io
         # Run this step even when the tests fail. Skip if the workflow is cancelled.
-        if: ${{ matrix.os != 'windows' && !cancelled() }}
+        # DISABLED: requires TRUNK_API_TOKEN
+        if: false
+        # Original if: ${{ matrix.os != 'windows' && !cancelled() }}
         continue-on-error: true
         uses: trunk-io/analytics-uploader@95a0fb8b29e45b6068304261fb518644b426a803 # v2.0.8
         with:
@@ -362,7 +364,9 @@ jobs:
 
       - name: Upload results of shell integration tests against fish to trunk.io
         # Run this step even when the tests fail. Skip if the workflow is cancelled.
-        if: ${{ matrix.os != 'windows' && !cancelled() }}
+        # DISABLED: requires TRUNK_API_TOKEN
+        if: false
+        # Original if: ${{ matrix.os != 'windows' && !cancelled() }}
         continue-on-error: true
         uses: trunk-io/analytics-uploader@95a0fb8b29e45b6068304261fb518644b426a803 # v2.0.8
         with:
@@ -385,7 +389,9 @@ jobs:
 
       - name: Upload results of shell integration tests against zsh to trunk.io
         # Run this step even when the tests fail. Skip if the workflow is cancelled.
-        if: ${{ matrix.os != 'windows' && !cancelled() }}
+        # DISABLED: requires TRUNK_API_TOKEN
+        if: false
+        # Original if: ${{ matrix.os != 'windows' && !cancelled() }}
         continue-on-error: true
         uses: trunk-io/analytics-uploader@95a0fb8b29e45b6068304261fb518644b426a803 # v2.0.8
         with:
@@ -408,7 +414,9 @@ jobs:
 
       - name: Upload results of shell integration tests against powershell to trunk.io
         # Run this step even when the tests fail. Skip if the workflow is cancelled.
-        if: ${{ matrix.os != 'windows' && !cancelled() }}
+        # DISABLED: requires TRUNK_API_TOKEN
+        if: false
+        # Original if: ${{ matrix.os != 'windows' && !cancelled() }}
         continue-on-error: true
         uses: trunk-io/analytics-uploader@95a0fb8b29e45b6068304261fb518644b426a803 # v2.0.8
         with:
@@ -470,7 +478,7 @@ jobs:
 
   lints:
     name: Formatting + Clippy (${{ matrix.name }})
-    timeout-minutes: 20
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -484,18 +492,14 @@ jobs:
 
           - os: "linux"
             name: "Linux"
-            # Use a larger (16 core, 64GB ram) runner on Linux to speed up execution time.
-            # https://github.com/warpdotdev/warp-internal/settings/actions/runners
-            runner: ubuntu-latest-large
-            # We don't (yet) have any self-hosted Linux runners.
+            runner: ubuntu-latest
             is_self_hosted: false
             null_device: "/dev/null"
             clippy_excludes: "--exclude warp_completer"
 
           - os: "windows"
             name: "Windows"
-            runner: windows-latest-large
-            # We don't (yet) have any self-hosted Windows runners.
+            runner: windows-latest
             is_self_hosted: false
             null_device: "NUL"
             clippy_excludes: "--exclude warp_js --exclude command-signatures-v2"
@@ -591,7 +595,7 @@ jobs:
 
   wasm-lint:
     name: Formatting + Clippy (wasm)
-    timeout-minutes: 20
+    timeout-minutes: 60
     strategy:
       fail-fast: false
     runs-on: ${{ fromJSON(needs.params.outputs.wasm-runner) }}
@@ -623,7 +627,7 @@ jobs:
 
   check-release-compilation:
     name: Verify compilation with release flags (${{ matrix.name }})
-    timeout-minutes: 15
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -636,17 +640,13 @@ jobs:
 
           - os: "linux"
             name: "Linux"
-            # Use a larger (16 core, 64GB ram) runner on Linux to speed up execution time.
-            # https://github.com/warpdotdev/warp-internal/settings/actions/runners
-            runner: ubuntu-latest-large
-            # We don't (yet) have any self-hosted Linux runners.
+            runner: ubuntu-latest
             is_self_hosted: false
             null_device: "/dev/null"
 
           - os: "windows"
             name: "Windows"
-            runner: windows-latest-large
-            # We don't (yet) have any self-hosted Windows runners.
+            runner: windows-latest
             is_self_hosted: false
             null_device: "NUL"
 
