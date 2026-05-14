@@ -66,4 +66,4 @@ Before asking the reporter for more information, check the issue body, comments,
 
 ## Owner-inference hints
 
-Prefer `.github/STAKEHOLDERS` for owner inference. When no path-level match exists, use the label and issue surface to choose likely owners rather than defaulting to broad app ownership.
+Owner inference is not configured for this fork. Use the label and issue surface to choose likely owners rather than defaulting to broad app ownership.
